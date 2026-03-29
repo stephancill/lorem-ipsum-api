@@ -18,6 +18,7 @@ import { isAddress } from "viem";
 
 type Bindings = {
 	ASSETS: Fetcher;
+	DISCOVERY_OWNERSHIP_PROOF?: string;
 	MPP_AMOUNT?: string;
 	MPP_CURRENCY?: string;
 	MPP_DECIMALS?: string;
@@ -235,6 +236,11 @@ const getX402Server = async (env: ParsedEnv) => {
 const generateRoute = createRoute({
 	method: "get",
 	path: "/generate",
+	operationId: "generateLoremIpsum",
+	summary: "Generate lorem ipsum text",
+	description:
+		"Generate paid placeholder text as words, sentences, or paragraphs.",
+	tags: ["Generation"],
 	request: {
 		query: GenerateQuerySchema,
 	},
@@ -301,9 +307,18 @@ app.get("/openapi.json", (c) => {
 		info: {
 			title: "Lorem Ipsum API",
 			version: "1.0.0",
+			description: "Paid placeholder text API with MPP and x402 support.",
+			"x-guidance":
+				"Use GET /generate to create paid lorem ipsum text. Provide optional query params count (1-50), units (words|sentences|paragraphs), and format (plain|html). Handle 402 responses via either MPP (WWW-Authenticate/Payment-Receipt) or x402 (PAYMENT-REQUIRED/PAYMENT-SIGNATURE).",
 		},
 		servers: [{ url: new URL(c.req.url).origin }],
 	});
+
+	if (c.env.DISCOVERY_OWNERSHIP_PROOF) {
+		document["x-discovery"] = {
+			ownershipProofs: [c.env.DISCOVERY_OWNERSHIP_PROOF],
+		};
+	}
 
 	document["x-service-info"] = {
 		categories: ["text", "ai"],

@@ -27,6 +27,8 @@ Visit `http://127.0.0.1:8787`.
 
 `/openapi.json` is generated from the route Zod schemas via `@hono/zod-openapi`, then enriched with MPP discovery metadata (`x-service-info` and `x-payment-info`).
 
+You can optionally set `DISCOVERY_OWNERSHIP_PROOF` to include `x-discovery.ownershipProofs` in the OpenAPI output.
+
 `/` serves the HTML landing page with favicon, Open Graph, and Twitter card metadata.
 
 ## Static files

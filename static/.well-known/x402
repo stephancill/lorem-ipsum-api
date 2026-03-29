@@ -1,0 +1,5 @@
+{
+  "name": "Lorem Ipsum API",
+  "description": "Paid placeholder text API with MPP and x402 support.",
+  "openapi": "/openapi.json"
+}
