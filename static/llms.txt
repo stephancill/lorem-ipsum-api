@@ -19,6 +19,7 @@ Endpoints
      - count: integer, 1..50 (default: 1)
      - units: words | sentences | paragraphs (singular also accepted)
      - format: plain | html (default: plain)
+   - Optional JSON body can include the same fields.
    - If unpaid: returns HTTP 402 with both WWW-Authenticate (MPP) and PAYMENT-REQUIRED (x402) challenges.
    - MPP clients can pay and receive Payment-Receipt header.
    - x402 clients can pay with PAYMENT-SIGNATURE and receive PAYMENT-RESPONSE header.

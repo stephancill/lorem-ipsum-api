@@ -44,6 +44,8 @@ Query params:
 - `units`: `words`, `sentences`, `paragraphs` (singular forms also accepted)
 - `format`: `plain` or `html`
 
+You can also pass the same fields as an optional JSON body on `GET /generate` for agent/discovery compatibility.
+
 ## MPP paywall config
 
 Configure these variables in `.dev.vars` for local development and as Worker vars/secrets in Cloudflare:

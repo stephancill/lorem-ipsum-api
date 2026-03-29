@@ -82,6 +82,15 @@ const GenerateQuerySchema = z.object({
 	format: z.enum(ALLOWED_FORMATS).default("plain"),
 });
 
+const GenerateBodySchema = z.object({
+	count: z.coerce.number().int().min(1).max(MAX_COUNT).optional(),
+	units: z
+		.enum(["word", "words", "sentence", "sentences", "paragraph", "paragraphs"])
+		.optional()
+		.transform((value) => (value ? normalizeUnits(value) : undefined)),
+	format: z.enum(ALLOWED_FORMATS).optional(),
+});
+
 const GenerateResponseSchema = z.object({
 	count: z.number().int().min(1).max(MAX_COUNT),
 	units: z.enum(ALLOWED_UNITS),
@@ -243,6 +252,14 @@ const generateRoute = createRoute({
 	tags: ["Generation"],
 	request: {
 		query: GenerateQuerySchema,
+		body: {
+			required: false,
+			content: {
+				"application/json": {
+					schema: GenerateBodySchema,
+				},
+			},
+		},
 	},
 	responses: {
 		200: {
@@ -358,6 +375,14 @@ app.openapi(generateRoute, async (c) => {
 	}
 
 	const query = c.req.valid("query");
+	const hasJsonBody = (c.req.header("content-type") ?? "").includes(
+		"application/json",
+	);
+	const body = hasJsonBody ? c.req.valid("json") : undefined;
+	const input = GenerateQuerySchema.parse({
+		...query,
+		...body,
+	});
 	const env = envResult.data;
 	const hasX402Proof = Boolean(
 		c.req.header("payment-signature") ?? c.req.header("x-payment"),
@@ -405,10 +430,10 @@ app.openapi(generateRoute, async (c) => {
 		}
 
 		if (x402Result.type === "no-payment-required") {
-			return c.json(buildLoremResponse(query), 200);
+			return c.json(buildLoremResponse(input), 200);
 		}
 
-		const response = c.json(buildLoremResponse(query), 200);
+		const response = c.json(buildLoremResponse(input), 200);
 		const settleResult = await httpServer.processSettlement(
 			x402Result.paymentPayload,
 			x402Result.paymentRequirements,
@@ -459,7 +484,7 @@ app.openapi(generateRoute, async (c) => {
 		return paymentResult.challenge;
 	}
 
-	return paymentResult.withReceipt(c.json(buildLoremResponse(query), 200));
+	return paymentResult.withReceipt(c.json(buildLoremResponse(input), 200));
 });
 
 app.get("*", async (c) => {
