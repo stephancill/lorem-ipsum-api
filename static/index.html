@@ -109,6 +109,22 @@
         line-height: 1.45;
         overflow-wrap: anywhere;
       }
+      footer {
+        margin-top: 40px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(244, 237, 227, 0.14);
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .footer-links a {
+        text-decoration: underline;
+        text-underline-offset: 0.16em;
+      }
     </style>
   </head>
   <body>
@@ -136,6 +152,13 @@
           <code>/llms.txt and /openapi.json</code>
         </article>
       </div>
+      <footer>
+        <div class="footer-links">
+          <a href="https://www.x402scan.com/server/626fd1ba-b251-4d80-a11e-e05351f2e93e" target="_blank" rel="noopener noreferrer">x402 scan</a>
+          <a href="https://mppscan.com/server/56c7469877f1982f87ad20b974f2c21860b98ca1a347204b1af449dd1ca62478" target="_blank" rel="noopener noreferrer">mpp scan</a>
+          <a href="https://github.com/stephancill/lorem-ipsum-api" target="_blank" rel="noopener noreferrer">github</a>
+        </div>
+      </footer>
     </main>
   </body>
 </html>
