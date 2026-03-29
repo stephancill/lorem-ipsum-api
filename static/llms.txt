@@ -20,6 +20,10 @@ Endpoints
    - MPP clients can pay and receive Payment-Receipt header.
    - x402 clients can pay with PAYMENT-SIGNATURE and receive PAYMENT-RESPONSE header.
 
+3. GET /openapi.json
+   - Returns OpenAPI 3.1 discovery metadata for MPP clients.
+   - Includes x-service-info and x-payment-info for /generate.
+
 Examples
 - /generate
 - /generate?count=3&units=sentences

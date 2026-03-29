@@ -16,8 +16,10 @@
 	"private": true,
 	"type": "module",
 	"dependencies": {
+		"@hono/zod-openapi": "^1.2.4",
 		"@x402/core": "^2.8.0",
 		"@x402/evm": "^2.8.0",
+		"@x402/extensions": "^2.8.0",
 		"@x402/fetch": "^2.8.0",
 		"@x402/hono": "^2.8.0",
 		"@x402/paywall": "^2.8.0",

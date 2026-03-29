@@ -1,7 +1,9 @@
-import { Hono, type Context } from "hono";
-import { loremIpsum } from "lorem-ipsum";
-import { Mppx, tempo } from "mppx/server";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPFacilitatorClient } from "@x402/core/server";
+import {
+	bazaarResourceServerExtension,
+	declareDiscoveryExtension,
+} from "@x402/extensions/bazaar";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import {
 	HonoAdapter,
@@ -10,8 +12,9 @@ import {
 } from "@x402/hono";
 import { createPaywall } from "@x402/paywall";
 import { evmPaywall } from "@x402/paywall/evm";
+import { loremIpsum } from "lorem-ipsum";
+import { Mppx, tempo } from "mppx/server";
 import { isAddress } from "viem";
-import { z } from "zod";
 
 type Bindings = {
 	ASSETS: Fetcher;
@@ -20,47 +23,100 @@ type Bindings = {
 	MPP_DECIMALS?: string;
 	MPP_RECIPIENT?: string;
 	MPP_SECRET_KEY?: string;
+	X402_FACILITATOR_URL?: string;
+	X402_NETWORK?: string;
+	X402_PAY_TO?: string;
 };
 
-type AppContext = Context<{ Bindings: Bindings }>;
+const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
-const app = new Hono<{ Bindings: Bindings }>();
-
-const ALLOWED_UNITS = ["words", "sentences", "paragraphs"] as const;
-const ALLOWED_FORMATS = ["plain", "html"] as const;
-
-type AllowedUnit = (typeof ALLOWED_UNITS)[number];
-type AllowedFormat = (typeof ALLOWED_FORMATS)[number];
-
-const ALLOWED_UNITS_SET = new Set<string>(ALLOWED_UNITS);
-const ALLOWED_FORMATS_SET = new Set<string>(ALLOWED_FORMATS);
 const MAX_COUNT = 50;
-const DEFAULT_PRICE_AMOUNT = "0.001";
-const DEFAULT_PRICE_DECIMALS = 6;
-const DEFAULT_PATH_USD = "0x20c0000000000000000000000000000000000000";
+const ALLOWED_FORMATS = ["plain", "html"] as const;
+const ALLOWED_UNITS = ["words", "sentences", "paragraphs"] as const;
 const DEFAULT_X402_FACILITATOR_URL = "https://facilitator.payai.network";
 const DEFAULT_X402_NETWORK = "eip155:8453";
-const DEFAULT_X402_PRICE = "$0.001";
 
-const EnvSchema = z.object({
-	MPP_SECRET_KEY: z.string().min(1),
-	MPP_RECIPIENT: z.string().refine((value) => isAddress(value), {
-		message: "MPP_RECIPIENT must be a valid Ethereum address.",
-	}),
-	MPP_AMOUNT: z.string().min(1).default(DEFAULT_PRICE_AMOUNT),
-	MPP_DECIMALS: z.coerce
-		.number()
-		.int()
-		.nonnegative()
-		.default(DEFAULT_PRICE_DECIMALS),
-	MPP_CURRENCY: z.string().min(1).default(DEFAULT_PATH_USD),
-	X402_FACILITATOR_URL: z.string().url().default(DEFAULT_X402_FACILITATOR_URL),
-	X402_NETWORK: z.string().min(1).default(DEFAULT_X402_NETWORK),
-	X402_PRICE: z.string().min(1).default(DEFAULT_X402_PRICE),
-	X402_PAY_TO: z.string().optional(),
-});
+type AllowedFormat = (typeof ALLOWED_FORMATS)[number];
+type AllowedUnit = (typeof ALLOWED_UNITS)[number];
+
+const DecimalAmountSchema = z
+	.string()
+	.regex(/^\d+(?:\.\d+)?$/, "Must be a non-negative decimal string.");
+
+const EnvSchema = z
+	.object({
+		MPP_SECRET_KEY: z.string().min(1),
+		MPP_RECIPIENT: z.string().refine((value) => isAddress(value), {
+			message: "MPP_RECIPIENT must be a valid Ethereum address.",
+		}),
+		MPP_AMOUNT: DecimalAmountSchema,
+		MPP_DECIMALS: z.coerce.number().int().nonnegative(),
+		MPP_CURRENCY: z.string().min(1),
+		X402_FACILITATOR_URL: z
+			.string()
+			.url()
+			.default(DEFAULT_X402_FACILITATOR_URL),
+		X402_NETWORK: z.string().min(1).default(DEFAULT_X402_NETWORK),
+		X402_PAY_TO: z.string().optional(),
+	})
+	.superRefine((env, ctx) => {
+		const fraction = env.MPP_AMOUNT.split(".")[1];
+		if (fraction && fraction.length > env.MPP_DECIMALS) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["MPP_AMOUNT"],
+				message: "MPP_AMOUNT has more fractional digits than MPP_DECIMALS.",
+			});
+		}
+	});
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
+
+const GenerateQuerySchema = z.object({
+	count: z.coerce.number().int().min(1).max(MAX_COUNT).default(1),
+	units: z
+		.enum(["word", "words", "sentence", "sentences", "paragraph", "paragraphs"])
+		.default("paragraphs")
+		.transform((value) => normalizeUnits(value)),
+	format: z.enum(ALLOWED_FORMATS).default("plain"),
+});
+
+const GenerateResponseSchema = z.object({
+	count: z.number().int().min(1).max(MAX_COUNT),
+	units: z.enum(ALLOWED_UNITS),
+	format: z.enum(ALLOWED_FORMATS),
+	text: z.string(),
+});
+
+const ErrorResponseSchema = z.object({
+	error: z.string(),
+});
+
+const normalizeUnits = (value: string): AllowedUnit => {
+	if (value === "word") return "words";
+	if (value === "sentence") return "sentences";
+	if (value === "paragraph") return "paragraphs";
+	return value as AllowedUnit;
+};
+
+const toBaseUnitAmount = (amount: string, decimals: number): string => {
+	const [whole, fraction = ""] = amount.split(".");
+	const paddedFraction = fraction.padEnd(decimals, "0");
+	const normalized = `${whole}${paddedFraction}`.replace(/^0+(?=\d)/, "");
+	return normalized === "" ? "0" : normalized;
+};
+
+const toX402UsdPrice = (amount: string): `$${string}` => {
+	return `$${amount}`;
+};
+
+const createPaymentHandler = (env: ParsedEnv, realm: string) => {
+	return Mppx.create({
+		realm,
+		secretKey: env.MPP_SECRET_KEY,
+		methods: [tempo.charge()],
+	});
+};
 
 const getX402PaywallConfig = (requestUrl: string, env: ParsedEnv) => {
 	return {
@@ -70,77 +126,19 @@ const getX402PaywallConfig = (requestUrl: string, env: ParsedEnv) => {
 	};
 };
 
-const createPaymentHandler = (
-	env: z.infer<typeof EnvSchema>,
-	realm: string,
-) => {
-	return Mppx.create({
-		realm,
-		secretKey: env.MPP_SECRET_KEY,
-		methods: [tempo.charge()],
+const buildLoremResponse = (query: z.infer<typeof GenerateQuerySchema>) => {
+	const text = loremIpsum({
+		count: query.count,
+		units: query.units,
+		format: query.format as AllowedFormat,
 	});
-};
-
-const normalizeUnits = (value: string): AllowedUnit | string => {
-	if (value === "word") return "words";
-	if (value === "sentence") return "sentences";
-	if (value === "paragraph") return "paragraphs";
-	return value;
-};
-
-const getLoremInput = (c: AppContext) => {
-	const query = c.req.query();
-
-	const unitsInput = normalizeUnits(query.units ?? "paragraphs");
-	if (!ALLOWED_UNITS_SET.has(unitsInput)) {
-		return {
-			error: c.json(
-				{ error: "Invalid units. Use words, sentences, or paragraphs." },
-				400,
-			),
-		};
-	}
-
-	const formatInput = query.format ?? "plain";
-	if (!ALLOWED_FORMATS_SET.has(formatInput)) {
-		return {
-			error: c.json({ error: "Invalid format. Use plain or html." }, 400),
-		};
-	}
-
-	const countInput = Number.parseInt(query.count ?? "1", 10);
-	if (Number.isNaN(countInput) || countInput < 1 || countInput > MAX_COUNT) {
-		return {
-			error: c.json(
-				{ error: `Invalid count. Use an integer between 1 and ${MAX_COUNT}.` },
-				400,
-			),
-		};
-	}
 
 	return {
-		countInput,
-		unitsInput,
-		formatInput,
-	};
-};
-
-const buildLoremResponse = (
-	c: AppContext,
-	input: { countInput: number; unitsInput: string; formatInput: string },
-) => {
-	const text = loremIpsum({
-		count: input.countInput,
-		units: input.unitsInput as AllowedUnit,
-		format: input.formatInput as AllowedFormat,
-	});
-
-	return c.json({
-		count: input.countInput,
-		units: input.unitsInput,
-		format: input.formatInput,
+		count: query.count,
+		units: query.units,
+		format: query.format,
 		text,
-	});
+	};
 };
 
 let x402ServerCache:
@@ -156,27 +154,61 @@ const getX402Server = async (env: ParsedEnv) => {
 	if (!isAddress(payTo)) {
 		throw new Error("X402 pay-to address must be a valid Ethereum address.");
 	}
+	const x402Price = toX402UsdPrice(env.MPP_AMOUNT);
 
-	const cacheKey = `${env.X402_FACILITATOR_URL}|${env.X402_NETWORK}|${env.X402_PRICE}|${payTo}`;
+	const cacheKey = `${env.X402_FACILITATOR_URL}|${env.X402_NETWORK}|${x402Price}|${payTo}`;
 	if (!x402ServerCache || x402ServerCache.key !== cacheKey) {
 		const facilitatorClient = new HTTPFacilitatorClient({
 			url: env.X402_FACILITATOR_URL,
 		});
 		const network = env.X402_NETWORK as `${string}:${string}`;
-		const resourceServer = new x402ResourceServer(facilitatorClient).register(
-			"eip155:*",
-			new ExactEvmScheme(),
-		);
+		const resourceServer = new x402ResourceServer(facilitatorClient)
+			.register("eip155:*", new ExactEvmScheme())
+			.registerExtension(bazaarResourceServerExtension);
+
 		const server = new x402HTTPResourceServer(resourceServer, {
 			"GET /generate": {
 				accepts: {
 					scheme: "exact",
-					price: env.X402_PRICE,
+					price: x402Price,
 					network,
 					payTo,
 				},
 				description: "Lorem ipsum API request",
 				mimeType: "application/json",
+				extensions: {
+					...declareDiscoveryExtension({
+						input: {
+							count: "2",
+							units: "paragraphs",
+							format: "plain",
+						},
+						inputSchema: {
+							properties: {
+								count: {
+									type: "string",
+									description: "Integer between 1 and 50",
+								},
+								units: {
+									type: "string",
+									enum: ["words", "sentences", "paragraphs"],
+								},
+								format: {
+									type: "string",
+									enum: ["plain", "html"],
+								},
+							},
+						},
+						output: {
+							example: {
+								count: 2,
+								units: "paragraphs",
+								format: "plain",
+								text: "Lorem ipsum dolor sit amet.",
+							},
+						},
+					}),
+				},
 			},
 		});
 
@@ -200,6 +232,47 @@ const getX402Server = async (env: ParsedEnv) => {
 	return x402ServerCache.server;
 };
 
+const generateRoute = createRoute({
+	method: "get",
+	path: "/generate",
+	request: {
+		query: GenerateQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Successful response",
+			content: {
+				"application/json": {
+					schema: GenerateResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Invalid query parameters",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		402: {
+			description: "Payment Required",
+		},
+		500: {
+			description: "Server configuration invalid",
+			content: {
+				"application/json": {
+					schema: z.object({
+						error: z.string(),
+						missing: z.array(z.string()).optional(),
+						detail: z.string().optional(),
+					}),
+				},
+			},
+		},
+	},
+});
+
 app.get("/", (c) => {
 	return c.env.ASSETS.fetch(new Request(new URL("/llms.txt", c.req.url)));
 });
@@ -208,23 +281,68 @@ app.get("/llms.txt", (c) => {
 	return c.env.ASSETS.fetch(new Request(new URL("/llms.txt", c.req.url)));
 });
 
-app.get("/generate", async (c) => {
+app.get("/openapi.json", (c) => {
 	const envResult = EnvSchema.safeParse(c.env);
 	if (!envResult.success) {
 		return c.json(
 			{
-				error: "Server MPP configuration is invalid.",
+				error: "Server configuration is invalid.",
 				missing: envResult.error.issues.map((issue) => issue.path.join(".")),
 			},
 			500,
 		);
 	}
 
-	const loremInput = getLoremInput(c);
-	if ("error" in loremInput) {
-		return loremInput.error;
+	const env = envResult.data;
+	const amount = toBaseUnitAmount(env.MPP_AMOUNT, env.MPP_DECIMALS);
+
+	const document = app.getOpenAPI31Document({
+		openapi: "3.1.0",
+		info: {
+			title: "Lorem Ipsum API",
+			version: "1.0.0",
+		},
+		servers: [{ url: new URL(c.req.url).origin }],
+	});
+
+	document["x-service-info"] = {
+		categories: ["text", "ai"],
+		docs: {
+			homepage: "https://lorem.steer.fun",
+			apiReference: "https://lorem.steer.fun/llms.txt",
+			llms: "/llms.txt",
+		},
+	};
+
+	const generatePath = document.paths?.["/generate"]?.get as
+		| Record<string, unknown>
+		| undefined;
+	if (generatePath) {
+		generatePath["x-payment-info"] = {
+			amount,
+			currency: env.MPP_CURRENCY,
+			description: "Generate lorem ipsum text",
+			intent: "charge",
+			method: "tempo",
+		};
 	}
 
+	return c.json(document);
+});
+
+app.openapi(generateRoute, async (c) => {
+	const envResult = EnvSchema.safeParse(c.env);
+	if (!envResult.success) {
+		return c.json(
+			{
+				error: "Server configuration is invalid.",
+				missing: envResult.error.issues.map((issue) => issue.path.join(".")),
+			},
+			500,
+		);
+	}
+
+	const query = c.req.valid("query");
 	const env = envResult.data;
 	const hasX402Proof = Boolean(
 		c.req.header("payment-signature") ?? c.req.header("x-payment"),
@@ -259,6 +377,7 @@ app.get("/generate", async (c) => {
 		requestContext,
 		getX402PaywallConfig(c.req.url, env),
 	);
+
 	if (hasX402Proof) {
 		if (x402Result.type === "payment-error") {
 			const body = x402Result.response.isHtml
@@ -271,10 +390,10 @@ app.get("/generate", async (c) => {
 		}
 
 		if (x402Result.type === "no-payment-required") {
-			return buildLoremResponse(c, loremInput);
+			return c.json(buildLoremResponse(query), 200);
 		}
 
-		const response = buildLoremResponse(c, loremInput);
+		const response = c.json(buildLoremResponse(query), 200);
 		const settleResult = await httpServer.processSettlement(
 			x402Result.paymentPayload,
 			x402Result.paymentRequirements,
@@ -325,7 +444,7 @@ app.get("/generate", async (c) => {
 		return paymentResult.challenge;
 	}
 
-	return paymentResult.withReceipt(buildLoremResponse(c, loremInput));
+	return paymentResult.withReceipt(c.json(buildLoremResponse(query), 200));
 });
 
 app.get("*", async (c) => {

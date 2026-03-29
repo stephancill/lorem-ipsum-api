@@ -4,6 +4,7 @@ description: Generate paid placeholder text from the lorem ipsum API endpoint. U
 ---
 
 Call `GET https://lorem.steer.fun/generate`.
+Use `GET https://lorem.steer.fun/openapi.json` for MPP discovery metadata.
 
 Use query parameters:
 - `count` integer `1..50` (default `1`)
