@@ -3,13 +3,13 @@ Lorem Ipsum API
 Overview
 - This API generates placeholder lorem ipsum text.
 - Base URL is the current origin; all paths below are relative.
-- The /lorem endpoint is payment-gated using MPP and x402 (HTTP 402).
+- The /generate endpoint is payment-gated using MPP and x402 (HTTP 402).
 
 Endpoints
 1. GET /
    - Returns this llms.txt document.
 
-2. GET /lorem
+2. GET /generate
    - Paid endpoint.
    - Generates lorem ipsum text.
    - Query parameters:
@@ -21,13 +21,13 @@ Endpoints
    - x402 clients can pay with PAYMENT-SIGNATURE and receive PAYMENT-RESPONSE header.
 
 Examples
-- /lorem
-- /lorem?count=3&units=sentences
-- /lorem?count=2&units=paragraphs&format=html
+- /generate
+- /generate?count=3&units=sentences
+- /generate?count=2&units=paragraphs&format=html
 
 Paying from CLI
-- mppx --inspect /lorem
-- mppx /lorem?count=2&units=paragraphs
+- mppx --inspect /generate
+- mppx /generate?count=2&units=paragraphs
 - For MPP, if no wallet is configured yet, use Tempo skill setup: https://tempo.xyz/SKILL
 
 Errors

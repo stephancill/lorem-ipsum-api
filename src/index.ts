@@ -8,6 +8,8 @@ import {
 	x402HTTPResourceServer,
 	x402ResourceServer,
 } from "@x402/hono";
+import { createPaywall } from "@x402/paywall";
+import { evmPaywall } from "@x402/paywall/evm";
 import { isAddress } from "viem";
 import { z } from "zod";
 
@@ -59,6 +61,14 @@ const EnvSchema = z.object({
 });
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
+
+const getX402PaywallConfig = (requestUrl: string, env: ParsedEnv) => {
+	return {
+		appName: "Lorem Ipsum API",
+		currentUrl: requestUrl,
+		testnet: env.X402_NETWORK.endsWith(":84532"),
+	};
+};
 
 const createPaymentHandler = (
 	env: z.infer<typeof EnvSchema>,
@@ -158,7 +168,7 @@ const getX402Server = async (env: ParsedEnv) => {
 			new ExactEvmScheme(),
 		);
 		const server = new x402HTTPResourceServer(resourceServer, {
-			"GET /lorem": {
+			"GET /generate": {
 				accepts: {
 					scheme: "exact",
 					price: env.X402_PRICE,
@@ -169,6 +179,15 @@ const getX402Server = async (env: ParsedEnv) => {
 				mimeType: "application/json",
 			},
 		});
+
+		const paywall = createPaywall()
+			.withNetwork(evmPaywall)
+			.withConfig({
+				appName: "Lorem Ipsum API",
+				testnet: network === "eip155:84532",
+			})
+			.build();
+		server.registerPaywallProvider(paywall);
 
 		x402ServerCache = {
 			key: cacheKey,
@@ -189,7 +208,7 @@ app.get("/llms.txt", (c) => {
 	return c.env.ASSETS.fetch(new Request(new URL("/llms.txt", c.req.url)));
 });
 
-app.get("/lorem", async (c) => {
+app.get("/generate", async (c) => {
 	const envResult = EnvSchema.safeParse(c.env);
 	if (!envResult.success) {
 		return c.json(
@@ -236,7 +255,10 @@ app.get("/lorem", async (c) => {
 			adapter.getHeader("payment-signature") ?? adapter.getHeader("x-payment"),
 	};
 
-	const x402Result = await httpServer.processHTTPRequest(requestContext);
+	const x402Result = await httpServer.processHTTPRequest(
+		requestContext,
+		getX402PaywallConfig(c.req.url, env),
+	);
 	if (hasX402Proof) {
 		if (x402Result.type === "payment-error") {
 			const body = x402Result.response.isHtml
