@@ -28,6 +28,7 @@ Examples
 Paying from CLI
 - mppx --inspect /lorem
 - mppx /lorem?count=2&units=paragraphs
+- For MPP, if no wallet is configured yet, use Tempo skill setup: https://tempo.xyz/SKILL
 
 Errors
 - Returns HTTP 400 for invalid query parameters.

@@ -12,6 +12,7 @@ Use query parameters:
 
 Handle payment as follows:
 - If response is `402` with `WWW-Authenticate`, complete MPP payment and retry.
+- If no MPP wallet is available, use Tempo skill setup first: https://tempo.xyz/SKILL
 - If response is `402` with `PAYMENT-REQUIRED`, complete x402 payment with `PAYMENT-SIGNATURE` and retry.
 - Accept either protocol; the endpoint may return both challenges.
 
