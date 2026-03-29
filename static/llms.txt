@@ -25,19 +25,6 @@ Examples
 - /lorem?count=3&units=sentences
 - /lorem?count=2&units=paragraphs&format=html
 
-MPP payment config (server-side)
-- MPP_AMOUNT (default: 0.001)
-- MPP_DECIMALS (default: 6)
-- MPP_CURRENCY (default: 0x20c0000000000000000000000000000000000000)
-- MPP_RECIPIENT (required, no default)
-- MPP_SECRET_KEY (required, no default)
-
-x402 payment config (server-side)
-- X402_FACILITATOR_URL (default: https://facilitator.payai.network)
-- X402_NETWORK (default: eip155:8453)
-- X402_PRICE (default: $0.001)
-- X402_PAY_TO (optional; defaults to MPP_RECIPIENT)
-
 Paying from CLI
 - mppx --inspect /lorem
 - mppx /lorem?count=2&units=paragraphs
