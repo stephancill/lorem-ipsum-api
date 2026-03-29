@@ -274,7 +274,7 @@ const generateRoute = createRoute({
 });
 
 app.get("/", (c) => {
-	return c.env.ASSETS.fetch(new Request(new URL("/llms.txt", c.req.url)));
+	return c.env.ASSETS.fetch(new Request(new URL("/index.html", c.req.url)));
 });
 
 app.get("/llms.txt", (c) => {

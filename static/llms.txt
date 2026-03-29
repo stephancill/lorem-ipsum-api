@@ -7,9 +7,12 @@ Overview
 
 Endpoints
 1. GET /
+   - Returns the HTML landing page with favicon and social metadata.
+
+2. GET /llms.txt
    - Returns this llms.txt document.
 
-2. GET /generate
+3. GET /generate
    - Paid endpoint.
    - Generates lorem ipsum text.
    - Query parameters:
@@ -20,7 +23,7 @@ Endpoints
    - MPP clients can pay and receive Payment-Receipt header.
    - x402 clients can pay with PAYMENT-SIGNATURE and receive PAYMENT-RESPONSE header.
 
-3. GET /openapi.json
+4. GET /openapi.json
    - Returns OpenAPI 3.1 discovery metadata for MPP clients.
    - Includes x-service-info and x-payment-info for /generate.
 

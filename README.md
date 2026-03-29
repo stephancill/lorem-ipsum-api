@@ -19,12 +19,15 @@ Visit `http://127.0.0.1:8787`.
 ## API
 
 - `GET /`
+- `GET /llms.txt`
 - `GET /generate?count=2&units=paragraphs&format=plain`
 - `GET /openapi.json`
 
 `/generate` supports both MPP and x402 paywalls. Unpaid requests return `402 Payment Required` with both protocol challenges.
 
 `/openapi.json` is generated from the route Zod schemas via `@hono/zod-openapi`, then enriched with MPP discovery metadata (`x-service-info` and `x-payment-info`).
+
+`/` serves the HTML landing page with favicon, Open Graph, and Twitter card metadata.
 
 ## Static files
 
