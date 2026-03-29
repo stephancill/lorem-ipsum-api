@@ -12,6 +12,7 @@ import { isAddress } from "viem";
 import { z } from "zod";
 
 type Bindings = {
+	ASSETS: Fetcher;
 	MPP_AMOUNT?: string;
 	MPP_CURRENCY?: string;
 	MPP_DECIMALS?: string;
@@ -181,61 +182,11 @@ const getX402Server = async (env: ParsedEnv) => {
 };
 
 app.get("/", (c) => {
-	return c.json({
-		message: "Lorem Ipsum API on Hono + Cloudflare Workers",
-		endpoint: "/lorem?count=2&units=paragraphs&format=plain",
-		paywall: "MPP and x402 on /lorem",
-	});
+	return c.env.ASSETS.fetch(new Request(new URL("/llms.txt", c.req.url)));
 });
 
 app.get("/llms.txt", (c) => {
-	return c.text(`Lorem Ipsum API
-
-Overview
-- This API generates placeholder lorem ipsum text.
-- Base URL is the current origin; all paths below are relative.
-- The /lorem endpoint is payment-gated using MPP and x402 (HTTP 402).
-
-Endpoints
-1. GET /
-   - Returns service metadata as JSON.
-
-2. GET /lorem
-   - Paid endpoint.
-   - Generates lorem ipsum text.
-   - Query parameters:
-     - count: integer, 1..50 (default: 1)
-     - units: words | sentences | paragraphs (singular also accepted)
-     - format: plain | html (default: plain)
-   - If unpaid: returns HTTP 402 with both WWW-Authenticate (MPP) and PAYMENT-REQUIRED (x402) challenges.
-   - MPP clients can pay and receive Payment-Receipt header.
-   - x402 clients can pay with PAYMENT-SIGNATURE and receive PAYMENT-RESPONSE header.
-
-Examples
-- /lorem
-- /lorem?count=3&units=sentences
-- /lorem?count=2&units=paragraphs&format=html
-
-MPP payment config (server-side)
-- MPP_AMOUNT (default: 0.001)
-- MPP_DECIMALS (default: 6)
-- MPP_CURRENCY (default: 0x20c0000000000000000000000000000000000000)
-- MPP_RECIPIENT (required, no default)
-- MPP_SECRET_KEY (required, no default)
-
-x402 payment config (server-side)
-- X402_FACILITATOR_URL (default: https://facilitator.payai.network)
-- X402_NETWORK (default: eip155:8453)
-- X402_PRICE (default: $0.001)
-- X402_PAY_TO (optional; defaults to MPP_RECIPIENT)
-
-Paying from CLI
-- mppx --inspect /lorem
-- mppx /lorem?count=2&units=paragraphs
-
-Errors
-- Returns HTTP 400 for invalid query parameters.
-`);
+	return c.env.ASSETS.fetch(new Request(new URL("/llms.txt", c.req.url)));
 });
 
 app.get("/lorem", async (c) => {
@@ -353,6 +304,17 @@ app.get("/lorem", async (c) => {
 	}
 
 	return paymentResult.withReceipt(buildLoremResponse(c, loremInput));
+});
+
+app.get("*", async (c) => {
+	const staticResponse = await c.env.ASSETS.fetch(
+		new Request(new URL(c.req.path, c.req.url)),
+	);
+	if (staticResponse.status !== 404) {
+		return staticResponse;
+	}
+
+	return c.notFound();
 });
 
 export default app;

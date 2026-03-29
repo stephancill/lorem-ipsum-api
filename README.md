@@ -23,6 +23,13 @@ Visit `http://127.0.0.1:8787`.
 
 `/lorem` supports both MPP and x402 paywalls. Unpaid requests return `402 Payment Required` with both protocol challenges.
 
+## Static files
+
+Files in `static/` are served directly by the Worker via the Cloudflare assets binding.
+
+- `GET /` and `GET /llms.txt` both return `static/llms.txt`
+- You can add arbitrary files under `static/` and request them by path
+
 Query params:
 
 - `count`: integer from `1` to `50` (default `1`)

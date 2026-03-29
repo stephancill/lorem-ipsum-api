@@ -1,0 +1,1 @@
+../skills/lorem-ipsum/SKILL.md
