@@ -21,7 +21,7 @@ Visit `http://127.0.0.1:8787`.
 - `GET /`
 - `GET /lorem?count=2&units=paragraphs&format=plain`
 
-`/lorem` is behind an MPP paywall. Unpaid requests return `402 Payment Required`.
+`/lorem` supports both MPP and x402 paywalls. Unpaid requests return `402 Payment Required` with both protocol challenges.
 
 Query params:
 
@@ -40,6 +40,15 @@ Configure these variables in `.dev.vars` for local development and as Worker var
 - `MPP_RECIPIENT` (required, no default)
 
 `MPP_SECRET_KEY` and `MPP_RECIPIENT` are required. If either is missing, the API returns `500` for `/lorem`.
+
+## x402 config
+
+- `X402_FACILITATOR_URL` (default `https://facilitator.payai.network`)
+- `X402_NETWORK` (default `eip155:8453`)
+- `X402_PRICE` (default `$0.001`)
+- `X402_PAY_TO` (optional; defaults to `MPP_RECIPIENT`)
+
+For x402 clients on `/lorem`, use `PAYMENT-REQUIRED` and `PAYMENT-SIGNATURE` headers.
 
 Test payment flow with `mppx` CLI:
 
